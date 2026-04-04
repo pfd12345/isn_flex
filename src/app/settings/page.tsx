@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, FlaskConical, ToggleLeft, ToggleRight, Key, ExternalLink } from 'lucide-react';
+import { ArrowLeft, FlaskConical, ToggleLeft, ToggleRight, Key, Code, ChevronRight } from 'lucide-react';
 import Button from '@/components/ui/Button';
 
 interface SettingsData {
@@ -99,6 +99,26 @@ export default function SettingsPage() {
             </span>
           </div>
         </div>
+
+        {/* Mock Script Editor */}
+        <button
+          onClick={() => router.push('/settings/mock-script')}
+          className="w-full bg-white rounded-xl border border-[#E2E5E9] p-6 text-left hover:border-[#2563EB]/30 hover:shadow-sm transition-all group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-[#F0F4F8] flex items-center justify-center group-hover:bg-[#EFF6FF] transition-colors">
+              <Code size={18} className="text-[#5F6B7A] group-hover:text-[#2563EB] transition-colors" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-base font-semibold text-[#1A1D21]">Mock Script Editor</h2>
+              <p className="text-sm text-[#5F6B7A] mt-0.5">
+                Customize the demo responses returned in mock mode for each workflow stage.
+                Download or upload scripts as YAML files.
+              </p>
+            </div>
+            <ChevronRight size={16} className="text-[#8D95A0] group-hover:text-[#2563EB] transition-colors" />
+          </div>
+        </button>
 
         {/* API Key — Vercel Environment Variable */}
         <div className="bg-white rounded-xl border border-[#E2E5E9] p-6">
