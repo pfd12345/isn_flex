@@ -1,16 +1,17 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { ChatMessage } from '@/types';
-import { getSettings } from '@/lib/settings';
 
 export async function streamChat(
   systemPrompt: string,
   chatMessages: ChatMessage[]
 ): Promise<ReadableStream<Uint8Array>> {
-  const settings = getSettings();
-  const apiKey = settings.apiKey || process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.ANTHROPIC_API_KEY;
 
   if (!apiKey) {
-    throw new Error('No API key configured');
+    throw new Error(
+      'ANTHROPIC_API_KEY environment variable is not set. ' +
+      'Configure it in your Vercel project settings under Environment Variables.'
+    );
   }
 
   const client = new Anthropic({ apiKey });

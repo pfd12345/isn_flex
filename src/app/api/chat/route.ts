@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
     const settings = getSettings();
     let stream: ReadableStream<Uint8Array>;
 
-    if (settings.mockMode || !settings.apiKey) {
+    if (settings.mockMode || !process.env.ANTHROPIC_API_KEY) {
       stream = await mockStreamChat(systemPrompt, chatMessages, currentStageId);
     } else {
       stream = await streamChat(systemPrompt, chatMessages);

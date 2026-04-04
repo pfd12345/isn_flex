@@ -3,20 +3,19 @@ import { getSettings, updateSettings } from '@/lib/settings';
 
 export async function GET() {
   const settings = getSettings();
-  // Don't expose the full API key
   return NextResponse.json({
     mockMode: settings.mockMode,
-    hasApiKey: !!settings.apiKey,
+    hasApiKey: settings.hasApiKey,
   });
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const updated = updateSettings(body);
+    const { mockMode } = await req.json();
+    const updated = updateSettings({ mockMode });
     return NextResponse.json({
       mockMode: updated.mockMode,
-      hasApiKey: !!updated.apiKey,
+      hasApiKey: updated.hasApiKey,
     });
   } catch (error) {
     console.error('Settings update error:', error);

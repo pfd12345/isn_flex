@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, FlaskConical, ToggleLeft, ToggleRight, Key } from 'lucide-react';
+import { ArrowLeft, FlaskConical, ToggleLeft, ToggleRight, Key, ExternalLink } from 'lucide-react';
 import Button from '@/components/ui/Button';
 
 interface SettingsData {
@@ -13,7 +13,6 @@ interface SettingsData {
 export default function SettingsPage() {
   const router = useRouter();
   const [settings, setSettings] = useState<SettingsData | null>(null);
-  const [apiKey, setApiKey] = useState('');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -25,6 +24,13 @@ export default function SettingsPage() {
 
   const toggleMockMode = async () => {
     if (!settings) return;
+
+    // Warn if trying to disable mock mode without an API key
+    if (settings.mockMode && !settings.hasApiKey) {
+      setMessage('Cannot disable mock mode: ANTHROPIC_API_KEY is not configured. Add it in your Vercel project settings.');
+      return;
+    }
+
     setSaving(true);
     setMessage('');
     try {
@@ -36,25 +42,6 @@ export default function SettingsPage() {
       const data = await res.json();
       setSettings(data);
       setMessage(`Mock mode ${data.mockMode ? 'enabled' : 'disabled'}`);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const saveApiKey = async () => {
-    if (!apiKey.trim()) return;
-    setSaving(true);
-    setMessage('');
-    try {
-      const res = await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey: apiKey.trim(), mockMode: false }),
-      });
-      const data = await res.json();
-      setSettings(data);
-      setApiKey('');
-      setMessage('API key saved and mock mode disabled');
     } finally {
       setSaving(false);
     }
@@ -85,7 +72,7 @@ export default function SettingsPage() {
               <h2 className="text-base font-semibold text-[#1A1D21]">Mock Mode</h2>
               <p className="text-sm text-[#5F6B7A] mt-1">
                 When enabled, the app returns pre-built demo responses instead of calling the Claude API.
-                This is useful for demos and development without an API key.
+                This is useful for demos and development.
               </p>
             </div>
             <button
@@ -113,36 +100,56 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* API Key */}
+        {/* API Key — Vercel Environment Variable */}
         <div className="bg-white rounded-xl border border-[#E2E5E9] p-6">
           <div className="flex items-center gap-2 mb-2">
             <Key size={16} className="text-[#5F6B7A]" />
             <h2 className="text-base font-semibold text-[#1A1D21]">Anthropic API Key</h2>
           </div>
           <p className="text-sm text-[#5F6B7A] mb-4">
-            Required for live mode. Your key is stored in memory only and resets on server restart.
-            {settings?.hasApiKey && (
-              <span className="ml-1 text-green-600 font-medium">Key is currently set.</span>
-            )}
+            The API key is configured as an environment variable on the Vercel platform, not in the application.
+            This keeps your key secure and out of application code.
           </p>
-          <div className="flex gap-2">
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="sk-ant-..."
-              className="flex-1 rounded-lg border border-[#E2E5E9] bg-[#F8F9FA] px-3 py-2 text-sm text-[#1A1D21] placeholder-[#8D95A0] focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
-              onKeyDown={(e) => e.key === 'Enter' && saveApiKey()}
-            />
-            <Button onClick={saveApiKey} disabled={!apiKey.trim() || saving}>
-              Save Key
-            </Button>
+
+          <div className="rounded-lg border border-[#E2E5E9] bg-[#F8F9FA] p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-[#1A1D21]">
+                ANTHROPIC_API_KEY
+              </span>
+              {settings?.hasApiKey ? (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                  Configured
+                </span>
+              ) : (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                  Not Set
+                </span>
+              )}
+            </div>
+
+            <div className="text-xs text-[#5F6B7A] space-y-2">
+              <p className="font-medium text-[#1A1D21]">How to configure:</p>
+              <ol className="list-decimal ml-4 space-y-1">
+                <li>Go to your Vercel project dashboard</li>
+                <li>Navigate to <strong>Settings</strong> &rarr; <strong>Environment Variables</strong></li>
+                <li>Add a new variable with key <code className="bg-white px-1.5 py-0.5 rounded border border-[#E2E5E9] text-[10px]">ANTHROPIC_API_KEY</code></li>
+                <li>Paste your Anthropic API key as the value</li>
+                <li>Redeploy the application for the change to take effect</li>
+              </ol>
+              <p className="mt-2">
+                For local development, add the key to a <code className="bg-white px-1.5 py-0.5 rounded border border-[#E2E5E9] text-[10px]">.env.local</code> file in the project root.
+              </p>
+            </div>
           </div>
         </div>
 
         {/* Status message */}
         {message && (
-          <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm text-green-700">
+          <div className={`rounded-lg px-4 py-3 text-sm ${
+            message.includes('Cannot') || message.includes('not configured')
+              ? 'bg-red-50 border border-red-200 text-red-700'
+              : 'bg-green-50 border border-green-200 text-green-700'
+          }`}>
             {message}
           </div>
         )}

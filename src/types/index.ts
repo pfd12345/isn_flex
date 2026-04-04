@@ -193,7 +193,7 @@ export interface ChatMessage {
 
 export interface AppSettings {
   mockMode: boolean;
-  apiKey?: string;
+  hasApiKey?: boolean;
 }
 
 // ─── Resolved stage (stage definition merged with workflow overrides) ──
