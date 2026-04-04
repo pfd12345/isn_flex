@@ -1,0 +1,358 @@
+# config/isn.yaml
+# ══════════════════════════════════════════════════════════════
+# Intelligent Scientific Notebook — Master Configuration
+# ══════════════════════════════════════════════════════════════
+# All user-facing text, stage definitions, prompt templates,
+# artifact labels, and theme tokens are defined here.
+# Stages are data, not code — add, remove, rename, or reorder
+# freely. The app renders whatever is defined below.
+# ══════════════════════════════════════════════════════════════
+
+app:
+  name: "Intelligent Scientific Notebook"
+  short_name: "ISN"
+  description: "One notebook, one thread — from risk identification to regulatory readiness."
+  logo_path: "/logo.svg"
+
+theme:
+  mode: "light"
+  font_family: "Inter, system-ui, sans-serif"
+  border_radius: "8px"
+  colors:
+    background: "#FFFFFF"
+    surface: "#F8F9FA"
+    surface_elevated: "#FFFFFF"
+    border: "#E2E5E9"
+    text_primary: "#1A1D21"
+    text_secondary: "#5F6B7A"
+    text_muted: "#8D95A0"
+    accent: "#2563EB"
+    accent_light: "#EFF6FF"
+    success: "#16A34A"
+    warning: "#D97706"
+    error: "#DC2626"
+    chat_user_bg: "#F0F4F8"
+    chat_assistant_bg: "#FFFFFF"
+    artifact_bg: "#FAFBFC"
+    artifact_border: "#E2E5E9"
+    stage_active: "#2563EB"
+    stage_complete: "#16A34A"
+    stage_skipped: "#F59E0B"
+    stage_pending: "#D1D5DB"
+
+# ──────────────────────────────────────────────────────────────
+# STAGE DEFINITIONS
+# Stages are data, not code. Add, remove, rename, or reorder
+# freely — the app renders whatever is defined here.
+# ──────────────────────────────────────────────────────────────
+
+stage_defaults:
+  required: false
+  skippable: true
+  parallel: false
+
+stages:
+  - id: "risk_identification"
+    name: "Risk Identification"
+    short_name: "Risks"
+    icon: "shield-alert"
+    description: "Pre-populated risk register with flagged analysis"
+    system_prompt_context: |
+      You are assisting with the Risk Identification stage.
+      The team has opened a new notebook for a molecule.
+      Your role is to present a prioritised risk register based on any
+      uploaded artefacts and prior analysis. Each risk should be numbered,
+      categorised by severity (High/Medium/Low), and include a brief
+      rationale referencing the source data.
+      Generate risks as a structured JSON artifact with type "risk_register".
+    artifact_types:
+      - "risk_register"
+    completion_criteria: "Risk register reviewed and confirmed by team"
+
+  - id: "solid_form_risk_review"
+    name: "Solid Form Risk Review"
+    short_name: "Review"
+    icon: "search-check"
+    description: "Cross-reference risks against prior runs on similar molecules"
+    system_prompt_context: |
+      You are assisting with the Solid Form Risk Review stage.
+      Review the risk register and identify which risks can be mitigated
+      by prior runs on similar molecules. For each mitigatable risk,
+      recommend an adjusted version of the prior run and present it as
+      an approval card. The team will approve or reject directly.
+    artifact_types:
+      - "approval_card"
+    completion_criteria: "All prior-run recommendations reviewed (approved/rejected)"
+
+  - id: "in_silico_runs"
+    name: "New In-Silico Runs"
+    short_name: "In-Silico"
+    icon: "cpu"
+    description: "Commission new model runs for risks without prior analogues"
+    system_prompt_context: |
+      You are assisting with the In-Silico Runs stage.
+      For risks that cannot be addressed by prior runs, recommend
+      appropriate in-silico models. Present each as a model run request.
+      When results are returned (or simulated), summarise them clearly.
+      If results are inconclusive, flag this prominently.
+    artifact_types:
+      - "data_table"
+    completion_criteria: "All model runs completed and results reviewed"
+
+  - id: "gap_analysis"
+    name: "Gap Analysis & Wet Lab Scoping"
+    short_name: "Gap Analysis"
+    icon: "flask-conical"
+    description: "Scope gaps requiring wet-lab resolution"
+    system_prompt_context: |
+      You are assisting with the Gap Analysis stage.
+      Synthesise all outstanding risks and inconclusive model results
+      into a clear gap analysis. Help the team scope what needs to be
+      resolved in the wet lab. If meeting notes are uploaded, summarise
+      key decisions and action items.
+    artifact_types:
+      - "data_table"
+    completion_criteria: "Gap analysis complete and wet-lab scope agreed"
+
+  - id: "study_definition"
+    name: "Study Definition"
+    short_name: "Study Design"
+    icon: "beaker"
+    description: "Define experimental protocol within the notebook"
+    system_prompt_context: |
+      You are assisting with the Study Definition stage.
+      Guide the scientist through defining the experimental protocol.
+      Ask structured questions about parameters, equipment, materials,
+      and acceptance criteria. Generate a complete experiment protocol artifact.
+    artifact_types:
+      - "data_table"
+    completion_criteria: "Experiment protocol finalised and approved"
+
+  - id: "instrument_data_capture"
+    name: "Instrument Data Capture"
+    short_name: "Execution"
+    icon: "activity"
+    description: "Ingest PAT, imaging, and instrument data into the notebook"
+    system_prompt_context: |
+      You are assisting with the Instrument Data Capture stage.
+      The scientist is uploading data from lab instruments.
+      Parse uploaded files (CSV, JSON, images, PDFs) and generate
+      appropriate visualisations. Summarise key findings.
+      No manual transcription — present data directly from the files.
+    artifact_types:
+      - "data_chart"
+      - "data_table"
+    completion_criteria: "All instrument data uploaded and visualised"
+
+  - id: "experiment_context"
+    name: "Connected Experiment Context"
+    short_name: "Context"
+    icon: "link"
+    description: "Capture and contextualise experimental results"
+    system_prompt_context: |
+      You are assisting with the Experiment Context stage.
+      The scientist is recording experimental results and observations.
+      Accept both free-text entries and uploaded data. Link everything
+      back to the experiment protocol. Maintain a running context
+      of the full experiment narrative.
+    artifact_types:
+      - "data_table"
+    completion_criteria: "All experimental results and observations captured"
+
+  - id: "insight_interpretation"
+    name: "Insight & Interpretation"
+    short_name: "Insights"
+    icon: "lightbulb"
+    description: "Compare wet-lab outcomes against in-silico predictions"
+    system_prompt_context: |
+      You are assisting with the Insight & Interpretation stage.
+      Compare the wet-lab results against any in-silico predictions.
+      Identify discrepancies, analyse their significance, and recommend
+      next steps. Generate comparison charts where applicable.
+    artifact_types:
+      - "data_chart"
+      - "data_table"
+    completion_criteria: "Analysis complete with next steps identified"
+
+  - id: "decision_capture"
+    name: "Knowledge & Decision Capture"
+    short_name: "Decision"
+    icon: "stamp"
+    description: "Formally record decisions and create regulatory-ready artefacts"
+    system_prompt_context: |
+      You are assisting with the Decision Capture stage.
+      Prompt the scientist to formally state the decision, its rationale,
+      and supporting evidence. Generate a structured decision record
+      artifact with approval checkboxes. All data items and artefacts
+      should be listed for review.
+    artifact_types:
+      - "decision_capture"
+      - "approval_card"
+    completion_criteria: "Decision formally recorded and all items approved"
+
+  - id: "regulatory_authoring"
+    name: "Regulatory Document Authoring"
+    short_name: "Regulatory"
+    icon: "file-text"
+    description: "Compile approved outputs into regulatory document drafts"
+    system_prompt_context: |
+      You are assisting with the Regulatory Authoring stage.
+      Compile all approved data items, artefacts, and the decision trail
+      into a regulatory-ready document outline. Generate a downloadable
+      document draft.
+    artifact_types:
+      - "data_table"
+    completion_criteria: "Regulatory document draft generated and reviewed"
+
+  - id: "tacit_knowledge"
+    name: "Tacit Knowledge Capture"
+    short_name: "Knowledge"
+    icon: "brain"
+    description: "Continuous capture of implicit knowledge across all stages"
+    parallel: true
+    system_prompt_context: |
+      You are assisting with Tacit Knowledge Capture.
+      This runs in parallel with all other stages. When the scientist
+      uploads meeting transcripts, emails, or free-text notes, extract
+      key insights and structure them as knowledge cards. Identify:
+      - Causal statements (why something happened)
+      - Counterfactuals (what would have happened if...)
+      - Lessons learned (rules for future work)
+      - Expressions of surprise (unexpected findings)
+      Tag each extracted insight and present for validation.
+    artifact_types:
+      - "knowledge_card"
+    completion_criteria: "Ongoing — no completion gate"
+
+# ──────────────────────────────────────────────────────────────
+# WORKFLOW TEMPLATES
+# Each template selects a subset of stages and can override
+# the default required/skippable flags per stage.
+# ──────────────────────────────────────────────────────────────
+
+workflow_templates:
+  - id: "solid_form_development"
+    name: "Solid Form Development"
+    description: "Full workflow from risk identification to regulatory"
+    default: true
+    stages:
+      - id: "risk_identification"
+        required: true
+        skippable: false
+      - id: "solid_form_risk_review"
+      - id: "in_silico_runs"
+      - id: "gap_analysis"
+      - id: "study_definition"
+      - id: "instrument_data_capture"
+      - id: "experiment_context"
+      - id: "insight_interpretation"
+      - id: "decision_capture"
+        required: true
+        skippable: false
+      - id: "regulatory_authoring"
+      - id: "tacit_knowledge"
+        parallel: true
+
+  - id: "quick_assessment"
+    name: "Quick Risk Assessment"
+    description: "Lightweight 3-stage assessment for early screening"
+    stages:
+      - id: "risk_identification"
+        required: true
+        skippable: false
+      - id: "in_silico_runs"
+      - id: "decision_capture"
+        required: true
+        skippable: false
+
+  - id: "wet_lab_only"
+    name: "Wet Lab Execution"
+    description: "Focused workflow for lab experiment design and execution"
+    stages:
+      - id: "study_definition"
+        required: true
+        skippable: false
+      - id: "instrument_data_capture"
+      - id: "experiment_context"
+      - id: "insight_interpretation"
+      - id: "decision_capture"
+        required: true
+      - id: "tacit_knowledge"
+        parallel: true
+
+prompts:
+  system_base: |
+    You are the Intelligent Scientific Notebook (ISN) assistant.
+    You help scientists progress through a structured development
+    workflow within a single conversational thread.
+
+    Current stage: {stage_name} ({stage_id})
+
+    Design principles you embody:
+    - One notebook, one thread — the scientist never leaves the ISN
+    - Everything is traceable — link every output to its source
+    - Knowledge capture is a byproduct, not a chore
+
+    When generating artifacts, output them as JSON blocks with the
+    format: ```artifact {"type": "<type>", "data": {...}}```
+
+    Current project: {project_name}
+    Current workstream: {workstream_name}
+    Workflow template: {workflow_template_name}
+    Total stages in this workflow: {total_stages}
+    Current stage position: {stage_position} of {total_stages}
+    Skipped stages: {skipped_stages}
+
+    {stage_system_prompt_context}
+
+  welcome_message: |
+    Welcome to the **{project_name}** notebook, workstream **{workstream_name}**.
+    This workstream uses the **{workflow_template_name}** workflow
+    ({total_stages} stages). Let's begin with **{first_stage_name}**.
+
+  stage_transition: |
+    **{prev_stage_name}** is now {prev_stage_outcome}.
+    Moving to **{next_stage_name}**.
+    {next_stage_description}
+
+  stage_skip: |
+    **{stage_name}** has been skipped.
+    {skip_reason}
+    Proceeding to **{next_stage_name}**.
+
+chat:
+  placeholder: "Type a message, or upload a file..."
+  file_upload_label: "Attach files"
+  send_label: "Send"
+  max_file_size_mb: 50
+  allowed_file_types:
+    - ".csv"
+    - ".json"
+    - ".xml"
+    - ".pdf"
+    - ".docx"
+    - ".xlsx"
+    - ".png"
+    - ".jpg"
+    - ".jpeg"
+    - ".tiff"
+    - ".txt"
+    - ".md"
+
+labels:
+  projects: "Projects"
+  workstreams: "Workstreams"
+  new_project: "New Project"
+  new_workstream: "New Workstream"
+  stage_progress: "Stage Progress"
+  files: "Files"
+  knowledge_base: "Knowledge Base"
+  export: "Export"
+  approve: "Approve"
+  reject: "Reject"
+  skip_stage: "Skip Stage"
+  complete_stage: "Mark Complete"
+  reopen_stage: "Reopen Stage"
+  flag: "Flag for Review"
+  download: "Download"
+  select_workflow: "Select Workflow"
