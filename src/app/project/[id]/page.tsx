@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, use } from 'react';
+import { useState, useEffect, useCallback, use, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, FlaskConical, PanelRightOpen, PanelRightClose, Settings } from 'lucide-react';
 import ChatThread from '@/components/chat/ChatThread';
@@ -20,7 +20,23 @@ interface ProjectData extends Project {
   })[];
 }
 
+// Wrap the page content in Suspense so useSearchParams() works correctly in
+// Next.js 16 / React 19, where it must be inside a Suspense boundary.
 export default function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
+  return (
+    <Suspense
+      fallback={
+        <div className="h-full flex items-center justify-center text-[#8D95A0]">
+          Loading notebook...
+        </div>
+      }
+    >
+      <ProjectPageInner params={params} />
+    </Suspense>
+  );
+}
+
+function ProjectPageInner({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const searchParams = useSearchParams();

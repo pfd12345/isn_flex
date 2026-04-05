@@ -16,7 +16,7 @@ import { getWorkflowStages } from './config';
 
 // ─── File Persistence ─────────────────────────────────────────
 
-const DB_PATH = path.join(process.cwd(), 'data', 'db.json');
+const DB_PATH = path.join(process.cwd(), '.data', 'db.json');
 
 function ensureDataDir() {
   const dir = path.dirname(DB_PATH);
