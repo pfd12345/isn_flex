@@ -30,15 +30,27 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const [config, setConfig] = useState<ISNConfig | null>(null);
   const [showFiles, setShowFiles] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Load project and config
   useEffect(() => {
+    setLoading(true);
+    setError(null);
     Promise.all([
-      fetch(`/api/projects/${id}`).then((r) => r.json()),
-      fetch('/api/config').then((r) => r.json()),
+      fetch(`/api/projects/${id}`).then((r) => {
+        if (!r.ok) throw new Error(r.status === 404 ? 'Project not found' : `Failed to load project (${r.status})`);
+        return r.json();
+      }),
+      fetch('/api/config').then((r) => {
+        if (!r.ok) throw new Error(`Failed to load config (${r.status})`);
+        return r.json();
+      }),
     ]).then(([projectData, configData]) => {
       setProject(projectData);
       setConfig(configData);
+      setLoading(false);
+    }).catch((err: Error) => {
+      setError(err.message);
       setLoading(false);
     });
   }, [id]);
@@ -53,11 +65,11 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     );
   }
 
-  if (!project || !workstream || !config) {
+  if (error || !project || !workstream || !config) {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center">
-          <p className="text-[#5F6B7A] mb-4">Project not found</p>
+          <p className="text-[#5F6B7A] mb-4">{error || 'Project not found'}</p>
           <Button variant="secondary" onClick={() => router.push('/')}>
             Back to Projects
           </Button>
@@ -135,10 +147,12 @@ function NotebookView({
         // Refresh messages to get system messages about transitions
         try {
           const res = await fetch(`/api/projects/${project.id}`);
-          const data = await res.json();
-          const ws = data.workstreams?.find((w: Workstream) => w.id === initialWorkstream.id);
-          if (ws?.messages) {
-            setMessages(ws.messages);
+          if (res.ok) {
+            const data = await res.json();
+            const ws = data.workstreams?.find((w: Workstream) => w.id === initialWorkstream.id);
+            if (ws?.messages) {
+              setMessages(ws.messages);
+            }
           }
         } catch {
           // Refresh failed — that's ok

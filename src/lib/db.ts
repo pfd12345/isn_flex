@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import type {
   Project,
@@ -12,15 +14,124 @@ import type {
 } from '@/types';
 import { getWorkflowStages } from './config';
 
-// ─── In-Memory Stores ────────────────────────────────────────
+// ─── File Persistence ─────────────────────────────────────────
 
-const projects = new Map<string, Project>();
-const workstreams = new Map<string, Workstream>();
-const workstreamStages = new Map<string, WorkstreamStage[]>();
-const messages = new Map<string, Message[]>();
-const artifacts = new Map<string, Artifact[]>();
-const files = new Map<string, FileRecord[]>();
-const stageTransitions = new Map<string, StageTransition[]>();
+const DB_PATH = path.join(process.cwd(), 'data', 'db.json');
+
+function ensureDataDir() {
+  const dir = path.dirname(DB_PATH);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+}
+
+function persist() {
+  try {
+    ensureDataDir();
+    const data = {
+      projects: Object.fromEntries(projects),
+      workstreams: Object.fromEntries(workstreams),
+      workstreamStages: Object.fromEntries(workstreamStages),
+      messages: Object.fromEntries(messages),
+      artifacts: Object.fromEntries(artifacts),
+      files: Object.fromEntries(files),
+      stageTransitions: Object.fromEntries(stageTransitions),
+    };
+    fs.writeFileSync(DB_PATH, JSON.stringify(data), 'utf-8');
+  } catch (err) {
+    console.error('[db] Failed to persist data:', err);
+  }
+}
+
+function loadFromDisk() {
+  try {
+    if (!fs.existsSync(DB_PATH)) return;
+    const raw = fs.readFileSync(DB_PATH, 'utf-8');
+    const data = JSON.parse(raw);
+
+    if (data.projects) {
+      for (const [k, v] of Object.entries(data.projects)) {
+        projects.set(k, v as Project);
+      }
+    }
+    if (data.workstreams) {
+      for (const [k, v] of Object.entries(data.workstreams)) {
+        workstreams.set(k, v as Workstream);
+      }
+    }
+    if (data.workstreamStages) {
+      for (const [k, v] of Object.entries(data.workstreamStages)) {
+        workstreamStages.set(k, v as WorkstreamStage[]);
+      }
+    }
+    if (data.messages) {
+      for (const [k, v] of Object.entries(data.messages)) {
+        messages.set(k, v as Message[]);
+      }
+    }
+    if (data.artifacts) {
+      for (const [k, v] of Object.entries(data.artifacts)) {
+        artifacts.set(k, v as Artifact[]);
+      }
+    }
+    if (data.files) {
+      for (const [k, v] of Object.entries(data.files)) {
+        files.set(k, v as FileRecord[]);
+      }
+    }
+    if (data.stageTransitions) {
+      for (const [k, v] of Object.entries(data.stageTransitions)) {
+        stageTransitions.set(k, v as StageTransition[]);
+      }
+    }
+  } catch (err) {
+    console.error('[db] Failed to load data from disk:', err);
+  }
+}
+
+// ─── In-Memory Stores ────────────────────────────────────────
+// Use globalThis to preserve state across Next.js hot reloads in development
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __db: {
+    projects: Map<string, Project>;
+    workstreams: Map<string, Workstream>;
+    workstreamStages: Map<string, WorkstreamStage[]>;
+    messages: Map<string, Message[]>;
+    artifacts: Map<string, Artifact[]>;
+    files: Map<string, FileRecord[]>;
+    stageTransitions: Map<string, StageTransition[]>;
+    loaded: boolean;
+  } | undefined;
+}
+
+if (!globalThis.__db) {
+  globalThis.__db = {
+    projects: new Map(),
+    workstreams: new Map(),
+    workstreamStages: new Map(),
+    messages: new Map(),
+    artifacts: new Map(),
+    files: new Map(),
+    stageTransitions: new Map(),
+    loaded: false,
+  };
+}
+
+const projects = globalThis.__db.projects;
+const workstreams = globalThis.__db.workstreams;
+const workstreamStages = globalThis.__db.workstreamStages;
+const messages = globalThis.__db.messages;
+const artifacts = globalThis.__db.artifacts;
+const files = globalThis.__db.files;
+const stageTransitions = globalThis.__db.stageTransitions;
+
+// Load from disk once on startup
+if (!globalThis.__db.loaded) {
+  loadFromDisk();
+  globalThis.__db.loaded = true;
+}
 
 // ─── Projects ────────────────────────────────────────────────
 
@@ -32,6 +143,7 @@ export function createProject(name: string, description: string = ''): Project {
     created_at: new Date().toISOString(),
   };
   projects.set(project.id, project);
+  persist();
   return project;
 }
 
@@ -61,14 +173,25 @@ export function deleteProject(id: string): boolean {
   }
 
   projects.delete(id);
+  persist();
   return true;
 }
 
 export function deleteAllProjects(): void {
   const allProjects = listProjects();
   for (const p of allProjects) {
-    deleteProject(p.id);
+    const projectWorkstreams = getWorkstreamsByProject(p.id);
+    for (const ws of projectWorkstreams) {
+      messages.delete(ws.id);
+      artifacts.delete(ws.id);
+      files.delete(ws.id);
+      stageTransitions.delete(ws.id);
+      workstreamStages.delete(ws.id);
+      workstreams.delete(ws.id);
+    }
+    projects.delete(p.id);
   }
+  persist();
 }
 
 // ─── Workstreams ─────────────────────────────────────────────
@@ -107,6 +230,9 @@ export function createWorkstream(
       status = 'active';
     }
 
+    // suppress unused variable warning
+    void isFirst;
+
     return {
       id: uuidv4(),
       workstream_id: workstream.id,
@@ -138,6 +264,7 @@ export function createWorkstream(
     recordTransition(workstream.id, undefined, firstActive.stage_id, 'initial');
   }
 
+  persist();
   return workstream;
 }
 
@@ -230,6 +357,7 @@ export function transitionStage(
     }
   }
 
+  persist();
   return { success: true, stages };
 }
 
@@ -272,6 +400,7 @@ export function addMessage(
   const msgs = messages.get(workstreamId) || [];
   msgs.push(msg);
   messages.set(workstreamId, msgs);
+  persist();
   return msg;
 }
 
@@ -301,6 +430,7 @@ export function createArtifact(
   const arts = artifacts.get(workstreamId) || [];
   arts.push(artifact);
   artifacts.set(workstreamId, arts);
+  persist();
   return artifact;
 }
 
@@ -333,6 +463,7 @@ export function recordFile(
   const f = files.get(workstreamId) || [];
   f.push(file);
   files.set(workstreamId, f);
+  persist();
   return file;
 }
 
