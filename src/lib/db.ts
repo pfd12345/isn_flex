@@ -45,6 +45,32 @@ export function listProjects(): Project[] {
   );
 }
 
+export function deleteProject(id: string): boolean {
+  const project = projects.get(id);
+  if (!project) return false;
+
+  // Cascade: delete all workstreams and their data
+  const projectWorkstreams = getWorkstreamsByProject(id);
+  for (const ws of projectWorkstreams) {
+    messages.delete(ws.id);
+    artifacts.delete(ws.id);
+    files.delete(ws.id);
+    stageTransitions.delete(ws.id);
+    workstreamStages.delete(ws.id);
+    workstreams.delete(ws.id);
+  }
+
+  projects.delete(id);
+  return true;
+}
+
+export function deleteAllProjects(): void {
+  const allProjects = listProjects();
+  for (const p of allProjects) {
+    deleteProject(p.id);
+  }
+}
+
 // ─── Workstreams ─────────────────────────────────────────────
 
 export function createWorkstream(

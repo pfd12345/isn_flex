@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, FlaskConical, Zap, Beaker, Settings } from 'lucide-react';
+import { Plus, FlaskConical, Zap, Beaker, Settings, Trash2 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import Dialog from '@/components/ui/Dialog';
 import type { ISNConfig, Project, Workstream, WorkflowTemplateDefinition } from '@/types';
@@ -51,6 +51,19 @@ export default function Home() {
             <Button variant="ghost" size="sm" onClick={() => router.push('/settings')}>
               <Settings size={14} /> Settings
             </Button>
+            {projects.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={async () => {
+                  if (!confirm('Delete all projects? This cannot be undone.')) return;
+                  await fetch('/api/projects', { method: 'DELETE' });
+                  setProjects([]);
+                }}
+              >
+                <Trash2 size={14} /> Clear All
+              </Button>
+            )}
             <Button onClick={() => setShowCreate(true)}>
               <Plus size={14} /> New Project
             </Button>
@@ -76,28 +89,44 @@ export default function Home() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {projects.map((project) => (
-              <button
+              <div
                 key={project.id}
-                onClick={() => {
-                  const ws = project.workstreams?.[0];
-                  if (ws) router.push(`/project/${project.id}?ws=${ws.id}`);
-                }}
-                className="text-left bg-white rounded-xl border border-[#E2E5E9] p-5 hover:border-[#2563EB] hover:shadow-md transition-all group"
+                className="relative bg-white rounded-xl border border-[#E2E5E9] hover:border-[#2563EB] hover:shadow-md transition-all group"
               >
-                <h3 className="font-semibold text-[#1A1D21] group-hover:text-[#2563EB] transition-colors">
-                  {project.name}
-                </h3>
-                {project.description && (
-                  <p className="text-sm text-[#5F6B7A] mt-1 line-clamp-2">
-                    {project.description}
-                  </p>
-                )}
-                <div className="flex items-center gap-2 mt-3 text-xs text-[#8D95A0]">
-                  <span>{project.workstreams?.length || 0} workstream(s)</span>
-                  <span>&middot;</span>
-                  <span>{new Date(project.created_at).toLocaleDateString()}</span>
-                </div>
-              </button>
+                <button
+                  onClick={() => {
+                    const ws = project.workstreams?.[0];
+                    if (ws) router.push(`/project/${project.id}?ws=${ws.id}`);
+                  }}
+                  className="text-left w-full p-5"
+                >
+                  <h3 className="font-semibold text-[#1A1D21] group-hover:text-[#2563EB] transition-colors pr-6">
+                    {project.name}
+                  </h3>
+                  {project.description && (
+                    <p className="text-sm text-[#5F6B7A] mt-1 line-clamp-2">
+                      {project.description}
+                    </p>
+                  )}
+                  <div className="flex items-center gap-2 mt-3 text-xs text-[#8D95A0]">
+                    <span>{project.workstreams?.length || 0} workstream(s)</span>
+                    <span>&middot;</span>
+                    <span>{new Date(project.created_at).toLocaleDateString()}</span>
+                  </div>
+                </button>
+                <button
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    if (!confirm(`Delete "${project.name}"? This cannot be undone.`)) return;
+                    await fetch(`/api/projects/${project.id}`, { method: 'DELETE' });
+                    setProjects((prev) => prev.filter((p) => p.id !== project.id));
+                  }}
+                  className="absolute top-3 right-3 p-1.5 rounded-lg text-[#8D95A0] hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+                  title="Delete project"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
             ))}
           </div>
         )}

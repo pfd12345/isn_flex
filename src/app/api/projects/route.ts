@@ -6,6 +6,7 @@ import {
   getWorkstreamsByProject,
   getWorkstreamStages,
   addMessage,
+  deleteAllProjects,
 } from '@/lib/db';
 import { getDefaultWorkflowTemplate, getWorkflowTemplate, getWorkflowStages, getPrompts } from '@/lib/config';
 
@@ -17,6 +18,11 @@ export async function GET() {
     workstreams: getWorkstreamsByProject(p.id),
   }));
   return NextResponse.json(enriched);
+}
+
+export async function DELETE() {
+  deleteAllProjects();
+  return NextResponse.json({ success: true });
 }
 
 export async function POST(req: NextRequest) {
