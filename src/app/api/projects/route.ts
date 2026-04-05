@@ -10,6 +10,8 @@ import {
 } from '@/lib/db';
 import { getDefaultWorkflowTemplate, getWorkflowTemplate, getWorkflowStages, getPrompts } from '@/lib/config';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   const projects = listProjects();
   // Enrich with workstream count
@@ -17,7 +19,9 @@ export async function GET() {
     ...p,
     workstreams: getWorkstreamsByProject(p.id),
   }));
-  return NextResponse.json(enriched);
+  return NextResponse.json(enriched, {
+    headers: { 'Cache-Control': 'no-store' },
+  });
 }
 
 export async function DELETE() {

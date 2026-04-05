@@ -1,5 +1,7 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, FlaskConical, Zap, Beaker, Settings, Trash2 } from 'lucide-react';
@@ -20,11 +22,11 @@ export default function Home() {
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/projects').then((r) => {
+      fetch('/api/projects', { cache: 'no-store' }).then((r) => {
         if (!r.ok) throw new Error(`Failed to load projects (${r.status})`);
         return r.json();
       }),
-      fetch('/api/config').then((r) => {
+      fetch('/api/config', { cache: 'no-store' }).then((r) => {
         if (!r.ok) throw new Error(`Failed to load config (${r.status})`);
         return r.json();
       }),
