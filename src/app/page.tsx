@@ -42,23 +42,23 @@ export default function Home() {
     <div className="min-h-full bg-[#F8F9FA]">
       {/* Header */}
       <header className="bg-white border-b border-[#E2E5E9]">
-        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-[#2563EB] flex items-center justify-center">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-[#2563EB] flex items-center justify-center flex-shrink-0">
               <FlaskConical size={16} className="text-white" />
             </div>
-            <div>
-              <h1 className="text-lg font-semibold text-[#1A1D21]">
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-lg font-semibold text-[#1A1D21] truncate">
                 {config?.app?.name || 'Intelligent Scientific Notebook'}
               </h1>
-              <p className="text-xs text-[#8D95A0]">
+              <p className="text-xs text-[#8D95A0] hidden sm:block">
                 {config?.app?.description || ''}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
             <Button variant="ghost" size="sm" onClick={() => router.push('/settings')}>
-              <Settings size={14} /> Settings
+              <Settings size={14} /> <span className="hidden sm:inline">Settings</span>
             </Button>
             {projects.length > 0 && (
               <Button
@@ -70,22 +70,22 @@ export default function Home() {
                   setProjects([]);
                 }}
               >
-                <Trash2 size={14} /> Clear All
+                <Trash2 size={14} /> <span className="hidden sm:inline">Clear All</span>
               </Button>
             )}
             <Button onClick={() => setShowCreate(true)}>
-              <Plus size={14} /> New Project
+              <Plus size={14} /> <span className="hidden sm:inline">New Project</span>
             </Button>
           </div>
         </div>
       </header>
 
       {/* Main content */}
-      <main className="max-w-5xl mx-auto px-6 py-8">
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {loading ? (
           <div className="text-center py-20 text-[#8D95A0]">Loading...</div>
         ) : projects.length === 0 ? (
-          <div className="text-center py-20">
+          <div className="text-center py-16 sm:py-20">
             <FlaskConical size={48} className="mx-auto text-[#D1D5DB] mb-4" />
             <h2 className="text-xl font-semibold text-[#1A1D21] mb-2">No projects yet</h2>
             <p className="text-[#5F6B7A] mb-6">
@@ -130,7 +130,7 @@ export default function Home() {
                     await fetch(`/api/projects/${project.id}`, { method: 'DELETE' });
                     setProjects((prev) => prev.filter((p) => p.id !== project.id));
                   }}
-                  className="absolute top-3 right-3 p-1.5 rounded-lg text-[#8D95A0] hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+                  className="absolute top-3 right-3 p-2 rounded-lg text-[#8D95A0] hover:text-red-500 hover:bg-red-50 transition-colors sm:opacity-0 sm:group-hover:opacity-100"
                   title="Delete project"
                 >
                   <Trash2 size={14} />
