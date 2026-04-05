@@ -20,11 +20,20 @@ export default function Home() {
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/projects').then((r) => r.json()),
-      fetch('/api/config').then((r) => r.json()),
+      fetch('/api/projects').then((r) => {
+        if (!r.ok) throw new Error(`Failed to load projects (${r.status})`);
+        return r.json();
+      }),
+      fetch('/api/config').then((r) => {
+        if (!r.ok) throw new Error(`Failed to load config (${r.status})`);
+        return r.json();
+      }),
     ]).then(([projects, config]) => {
       setProjects(projects);
       setConfig(config);
+      setLoading(false);
+    }).catch((err: Error) => {
+      console.error('Failed to load data:', err);
       setLoading(false);
     });
   }, []);
