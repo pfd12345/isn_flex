@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, FlaskConical, Zap, Beaker, Settings, Trash2 } from 'lucide-react';
+import { Plus, FlaskConical, Zap, Beaker, Settings, Trash2, Share2 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import Dialog from '@/components/ui/Dialog';
 import type { ISNConfig, Project, Workstream, WorkflowTemplateDefinition } from '@/types';
@@ -57,6 +57,9 @@ export default function Home() {
             </div>
           </div>
           <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+            <Button variant="ghost" size="sm" onClick={() => router.push('/ontology')}>
+              <Share2 size={14} /> <span className="hidden sm:inline">Ontology</span>
+            </Button>
             <Button variant="ghost" size="sm" onClick={() => router.push('/settings')}>
               <Settings size={14} /> <span className="hidden sm:inline">Settings</span>
             </Button>

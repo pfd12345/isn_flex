@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, use } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, FlaskConical, PanelRightOpen, PanelRightClose, PanelLeftOpen, PanelLeftClose, Settings, X } from 'lucide-react';
+import { ArrowLeft, FlaskConical, PanelRightOpen, PanelRightClose, PanelLeftOpen, PanelLeftClose, Settings, Share2, X } from 'lucide-react';
 import ChatThread from '@/components/chat/ChatThread';
 import ChatInput from '@/components/chat/ChatInput';
 import StageProgress from '@/components/sidebar/StageProgress';
@@ -97,6 +97,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       onToggleFiles={() => setShowFiles(!showFiles)}
       onToggleSidebar={() => setShowSidebar(!showSidebar)}
       onBack={() => router.push('/')}
+      onOntology={() => router.push('/ontology')}
       onSettings={() => router.push('/settings')}
     />
   );
@@ -111,6 +112,7 @@ function NotebookView({
   onToggleFiles,
   onToggleSidebar,
   onBack,
+  onOntology,
   onSettings,
 }: {
   project: ProjectData;
@@ -121,6 +123,7 @@ function NotebookView({
   onToggleFiles: () => void;
   onToggleSidebar: () => void;
   onBack: () => void;
+  onOntology: () => void;
   onSettings: () => void;
 }) {
   const {
@@ -227,6 +230,9 @@ function NotebookView({
                 {showFiles ? <PanelRightClose size={14} /> : <PanelRightOpen size={14} />}
               </Button>
             </span>
+            <Button variant="ghost" size="sm" onClick={onOntology}>
+              <Share2 size={14} />
+            </Button>
             <Button variant="ghost" size="sm" onClick={onSettings}>
               <Settings size={14} />
             </Button>
