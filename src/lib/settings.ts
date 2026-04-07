@@ -1,7 +1,7 @@
 import type { AppSettings } from '@/types';
 
 const settings: AppSettings = {
-  mockMode: !process.env.ANTHROPIC_API_KEY,
+  mockMode: true,
 };
 
 export function getSettings(): AppSettings {
