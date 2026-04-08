@@ -13,7 +13,21 @@ import type {
 } from '@/types';
 import { getWorkflowStages } from './config';
 
-const sql = neon(process.env.DATABASE_URL!);
+// Lazy singleton — neon() is not called at module load time so this module
+// can be imported during builds when DATABASE_URL is not yet set.
+let _client: ReturnType<typeof neon> | null = null;
+
+// Typed tagged-template wrapper that defers client creation to first call.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Row = Record<string, any>;
+function sql(strings: TemplateStringsArray, ...values: unknown[]): Promise<Row[]> {
+  if (!_client) {
+    const url = process.env.DATABASE_URL;
+    if (!url) throw new Error('DATABASE_URL environment variable is not set');
+    _client = neon(url);
+  }
+  return _client(strings, ...values) as Promise<Row[]>;
+}
 
 // ─── Projects ────────────────────────────────────────────────
 
