@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     const blobUrl = `data:${file.type};base64,${base64}`;
 
     // For large files, just store a reference
-    const fileRecord = recordFile(
+    const fileRecord = await recordFile(
       workstreamId,
       file.name,
       blobUrl.length > 1_000_000 ? `memory://${file.name}` : blobUrl,
@@ -46,5 +46,5 @@ export async function GET(req: NextRequest) {
   if (!workstreamId) {
     return NextResponse.json({ error: 'workstream_id required' }, { status: 400 });
   }
-  return NextResponse.json(getFiles(workstreamId));
+  return NextResponse.json(await getFiles(workstreamId));
 }

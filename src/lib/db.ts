@@ -1,5 +1,4 @@
-import fs from 'fs';
-import path from 'path';
+import { neon } from '@neondatabase/serverless';
 import { v4 as uuidv4 } from 'uuid';
 import type {
   Project,
@@ -14,194 +13,51 @@ import type {
 } from '@/types';
 import { getWorkflowStages } from './config';
 
-// ─── File Persistence ─────────────────────────────────────────
-
-const DB_PATH = path.join(process.cwd(), 'data', 'db.json');
-
-function ensureDataDir() {
-  const dir = path.dirname(DB_PATH);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-}
-
-function persist() {
-  try {
-    ensureDataDir();
-    const data = {
-      projects: Object.fromEntries(projects),
-      workstreams: Object.fromEntries(workstreams),
-      workstreamStages: Object.fromEntries(workstreamStages),
-      messages: Object.fromEntries(messages),
-      artifacts: Object.fromEntries(artifacts),
-      files: Object.fromEntries(files),
-      stageTransitions: Object.fromEntries(stageTransitions),
-    };
-    fs.writeFileSync(DB_PATH, JSON.stringify(data), 'utf-8');
-  } catch (err) {
-    console.error('[db] Failed to persist data:', err);
-  }
-}
-
-function loadFromDisk() {
-  try {
-    if (!fs.existsSync(DB_PATH)) return;
-    const raw = fs.readFileSync(DB_PATH, 'utf-8');
-    const data = JSON.parse(raw);
-
-    if (data.projects) {
-      for (const [k, v] of Object.entries(data.projects)) {
-        projects.set(k, v as Project);
-      }
-    }
-    if (data.workstreams) {
-      for (const [k, v] of Object.entries(data.workstreams)) {
-        workstreams.set(k, v as Workstream);
-      }
-    }
-    if (data.workstreamStages) {
-      for (const [k, v] of Object.entries(data.workstreamStages)) {
-        workstreamStages.set(k, v as WorkstreamStage[]);
-      }
-    }
-    if (data.messages) {
-      for (const [k, v] of Object.entries(data.messages)) {
-        messages.set(k, v as Message[]);
-      }
-    }
-    if (data.artifacts) {
-      for (const [k, v] of Object.entries(data.artifacts)) {
-        artifacts.set(k, v as Artifact[]);
-      }
-    }
-    if (data.files) {
-      for (const [k, v] of Object.entries(data.files)) {
-        files.set(k, v as FileRecord[]);
-      }
-    }
-    if (data.stageTransitions) {
-      for (const [k, v] of Object.entries(data.stageTransitions)) {
-        stageTransitions.set(k, v as StageTransition[]);
-      }
-    }
-  } catch (err) {
-    console.error('[db] Failed to load data from disk:', err);
-  }
-}
-
-// ─── In-Memory Stores ────────────────────────────────────────
-// Use globalThis to preserve state across Next.js hot reloads in development
-
-declare global {
-  // eslint-disable-next-line no-var
-  var __db: {
-    projects: Map<string, Project>;
-    workstreams: Map<string, Workstream>;
-    workstreamStages: Map<string, WorkstreamStage[]>;
-    messages: Map<string, Message[]>;
-    artifacts: Map<string, Artifact[]>;
-    files: Map<string, FileRecord[]>;
-    stageTransitions: Map<string, StageTransition[]>;
-    loaded: boolean;
-  } | undefined;
-}
-
-if (!globalThis.__db) {
-  globalThis.__db = {
-    projects: new Map(),
-    workstreams: new Map(),
-    workstreamStages: new Map(),
-    messages: new Map(),
-    artifacts: new Map(),
-    files: new Map(),
-    stageTransitions: new Map(),
-    loaded: false,
-  };
-}
-
-const projects = globalThis.__db.projects;
-const workstreams = globalThis.__db.workstreams;
-const workstreamStages = globalThis.__db.workstreamStages;
-const messages = globalThis.__db.messages;
-const artifacts = globalThis.__db.artifacts;
-const files = globalThis.__db.files;
-const stageTransitions = globalThis.__db.stageTransitions;
-
-// Load from disk once on startup
-if (!globalThis.__db.loaded) {
-  loadFromDisk();
-  globalThis.__db.loaded = true;
-}
+const sql = neon(process.env.DATABASE_URL!);
 
 // ─── Projects ────────────────────────────────────────────────
 
-export function createProject(name: string, description: string = ''): Project {
+export async function createProject(name: string, description: string = ''): Promise<Project> {
   const project: Project = {
     id: uuidv4(),
     name,
     description,
     created_at: new Date().toISOString(),
   };
-  projects.set(project.id, project);
-  persist();
+  await sql`
+    INSERT INTO projects (id, name, description, created_at)
+    VALUES (${project.id}, ${project.name}, ${project.description}, ${project.created_at})
+  `;
   return project;
 }
 
-export function getProject(id: string): Project | undefined {
-  return projects.get(id);
+export async function getProject(id: string): Promise<Project | undefined> {
+  const rows = await sql`SELECT * FROM projects WHERE id = ${id}`;
+  return (rows[0] as Project) ?? undefined;
 }
 
-export function listProjects(): Project[] {
-  return Array.from(projects.values()).sort(
-    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-  );
+export async function listProjects(): Promise<Project[]> {
+  const rows = await sql`SELECT * FROM projects ORDER BY created_at DESC`;
+  return rows as Project[];
 }
 
-export function deleteProject(id: string): boolean {
-  const project = projects.get(id);
-  if (!project) return false;
-
-  // Cascade: delete all workstreams and their data
-  const projectWorkstreams = getWorkstreamsByProject(id);
-  for (const ws of projectWorkstreams) {
-    messages.delete(ws.id);
-    artifacts.delete(ws.id);
-    files.delete(ws.id);
-    stageTransitions.delete(ws.id);
-    workstreamStages.delete(ws.id);
-    workstreams.delete(ws.id);
-  }
-
-  projects.delete(id);
-  persist();
-  return true;
+export async function deleteProject(id: string): Promise<boolean> {
+  const rows = await sql`DELETE FROM projects WHERE id = ${id} RETURNING id`;
+  return rows.length > 0;
 }
 
-export function deleteAllProjects(): void {
-  const allProjects = listProjects();
-  for (const p of allProjects) {
-    const projectWorkstreams = getWorkstreamsByProject(p.id);
-    for (const ws of projectWorkstreams) {
-      messages.delete(ws.id);
-      artifacts.delete(ws.id);
-      files.delete(ws.id);
-      stageTransitions.delete(ws.id);
-      workstreamStages.delete(ws.id);
-      workstreams.delete(ws.id);
-    }
-    projects.delete(p.id);
-  }
-  persist();
+export async function deleteAllProjects(): Promise<void> {
+  await sql`DELETE FROM projects`;
 }
 
 // ─── Workstreams ─────────────────────────────────────────────
 
-export function createWorkstream(
+export async function createWorkstream(
   projectId: string,
   name: string,
   owner: string,
   workflowTemplateId: string
-): Workstream {
+): Promise<Workstream> {
   const resolvedStages = getWorkflowStages(workflowTemplateId);
 
   const workstream: Workstream = {
@@ -216,22 +72,15 @@ export function createWorkstream(
 
   // Build stage rows from the resolved stages
   const stages: WorkstreamStage[] = resolvedStages.map((rs, idx) => {
-    const isParallel = rs.parallel;
-    const isFirst = !isParallel && idx === resolvedStages.filter((s) => !s.parallel).indexOf(rs) && idx === resolvedStages.indexOf(rs);
-
-    // Find the first non-parallel stage
     const firstSequentialIndex = resolvedStages.findIndex((s) => !s.parallel);
     const isFirstSequential = resolvedStages.indexOf(rs) === firstSequentialIndex;
 
     let status: StageStatus = 'pending';
-    if (isParallel) {
+    if (rs.parallel) {
       status = 'always_active';
     } else if (isFirstSequential) {
       status = 'active';
     }
-
-    // suppress unused variable warning
-    void isFirst;
 
     return {
       id: uuidv4(),
@@ -246,149 +95,200 @@ export function createWorkstream(
     };
   });
 
-  // Set active_stage_id to the first sequential stage
+  // Set active_stage_id to the first sequential active stage
   const firstActive = stages.find((s) => s.status === 'active');
   if (firstActive) {
     workstream.active_stage_id = firstActive.stage_id;
   }
 
-  workstreams.set(workstream.id, workstream);
-  workstreamStages.set(workstream.id, stages);
-  messages.set(workstream.id, []);
-  artifacts.set(workstream.id, []);
-  files.set(workstream.id, []);
-  stageTransitions.set(workstream.id, []);
+  await sql`
+    INSERT INTO workstreams (id, project_id, name, owner, workflow_template_id, active_stage_id, created_at)
+    VALUES (
+      ${workstream.id}, ${workstream.project_id}, ${workstream.name},
+      ${workstream.owner}, ${workstream.workflow_template_id},
+      ${workstream.active_stage_id}, ${workstream.created_at}
+    )
+  `;
+
+  // Insert all stage rows
+  for (const stage of stages) {
+    await sql`
+      INSERT INTO workstream_stages
+        (id, workstream_id, stage_id, stage_name, position, status, required, skippable, parallel)
+      VALUES (
+        ${stage.id}, ${stage.workstream_id}, ${stage.stage_id}, ${stage.stage_name},
+        ${stage.position}, ${stage.status}, ${stage.required}, ${stage.skippable}, ${stage.parallel}
+      )
+    `;
+  }
 
   // Record initial transition
   if (firstActive) {
-    recordTransition(workstream.id, undefined, firstActive.stage_id, 'initial');
+    await sql`
+      INSERT INTO stage_transitions
+        (id, workstream_id, from_stage_id, to_stage_id, transition_type, reason, performed_by, created_at)
+      VALUES (
+        ${uuidv4()}, ${workstream.id}, ${null}, ${firstActive.stage_id},
+        ${'initial'}, ${null}, ${null}, ${new Date().toISOString()}
+      )
+    `;
   }
 
-  persist();
   return workstream;
 }
 
-export function getWorkstream(id: string): Workstream | undefined {
-  return workstreams.get(id);
+export async function getWorkstream(id: string): Promise<Workstream | undefined> {
+  const rows = await sql`SELECT * FROM workstreams WHERE id = ${id}`;
+  return (rows[0] as Workstream) ?? undefined;
 }
 
-export function getWorkstreamsByProject(projectId: string): Workstream[] {
-  return Array.from(workstreams.values()).filter((w) => w.project_id === projectId);
+export async function getWorkstreamsByProject(projectId: string): Promise<Workstream[]> {
+  const rows = await sql`SELECT * FROM workstreams WHERE project_id = ${projectId} ORDER BY created_at`;
+  return rows as Workstream[];
 }
 
 // ─── Workstream Stages ───────────────────────────────────────
 
-export function getWorkstreamStages(workstreamId: string): WorkstreamStage[] {
-  return workstreamStages.get(workstreamId) || [];
+export async function getWorkstreamStages(workstreamId: string): Promise<WorkstreamStage[]> {
+  const rows = await sql`
+    SELECT * FROM workstream_stages WHERE workstream_id = ${workstreamId} ORDER BY position
+  `;
+  return rows.map(rowToStage);
 }
 
-export function getActiveStage(workstreamId: string): WorkstreamStage | undefined {
-  const stages = getWorkstreamStages(workstreamId);
-  return stages.find((s) => s.status === 'active');
+export async function getActiveStage(workstreamId: string): Promise<WorkstreamStage | undefined> {
+  const rows = await sql`
+    SELECT * FROM workstream_stages
+    WHERE workstream_id = ${workstreamId} AND status = 'active'
+    LIMIT 1
+  `;
+  return rows.length > 0 ? rowToStage(rows[0]) : undefined;
 }
 
-export function transitionStage(
+export async function transitionStage(
   workstreamId: string,
   stageId: string,
   action: 'complete' | 'skip' | 'reopen',
   reason?: string
-): { success: boolean; error?: string; stages: WorkstreamStage[] } {
-  const stages = workstreamStages.get(workstreamId);
-  if (!stages) return { success: false, error: 'Workstream not found', stages: [] };
-
-  const stage = stages.find((s) => s.stage_id === stageId);
-  if (!stage) return { success: false, error: 'Stage not found', stages };
-
-  const now = new Date().toISOString();
-  const workstream = workstreams.get(workstreamId);
-
-  switch (action) {
-    case 'complete': {
-      if (stage.status !== 'active') {
-        return { success: false, error: 'Stage is not active', stages };
-      }
-      stage.status = 'completed';
-      stage.completed_at = now;
-
-      // Auto-advance to next pending sequential stage
-      const nextStage = stages.find(
-        (s) => s.status === 'pending' && !s.parallel && s.position > stage.position
-      );
-      if (nextStage) {
-        nextStage.status = 'active';
-        if (workstream) workstream.active_stage_id = nextStage.stage_id;
-        recordTransition(workstreamId, stageId, nextStage.stage_id, 'advance');
-      }
-      break;
-    }
-
-    case 'skip': {
-      if (!stage.skippable) {
-        return { success: false, error: 'Stage is not skippable', stages };
-      }
-      if (stage.status !== 'active') {
-        return { success: false, error: 'Stage is not active', stages };
-      }
-      stage.status = 'skipped';
-      stage.skipped_at = now;
-      stage.skip_reason = reason;
-
-      // Auto-advance to next pending sequential stage
-      const nextStage = stages.find(
-        (s) => s.status === 'pending' && !s.parallel && s.position > stage.position
-      );
-      if (nextStage) {
-        nextStage.status = 'active';
-        if (workstream) workstream.active_stage_id = nextStage.stage_id;
-        recordTransition(workstreamId, stageId, nextStage.stage_id, 'skip', reason);
-      }
-      break;
-    }
-
-    case 'reopen': {
-      if (stage.status !== 'completed' && stage.status !== 'skipped') {
-        return { success: false, error: 'Stage is not completed or skipped', stages };
-      }
-      stage.status = 'active';
-      stage.reopened_at = now;
-      if (workstream) workstream.active_stage_id = stage.stage_id;
-      recordTransition(workstreamId, undefined, stageId, 'reopen');
-      break;
-    }
+): Promise<{ success: boolean; error?: string; stages: WorkstreamStage[] }> {
+  // Fetch target stage row
+  const stageRows = await sql`
+    SELECT * FROM workstream_stages
+    WHERE workstream_id = ${workstreamId} AND stage_id = ${stageId}
+    LIMIT 1
+  `;
+  if (stageRows.length === 0) {
+    const stages = await getWorkstreamStages(workstreamId);
+    return { success: false, error: 'Workstream or stage not found', stages };
   }
 
-  persist();
-  return { success: true, stages };
-}
+  const stage = rowToStage(stageRows[0]);
+  const now = new Date().toISOString();
 
-function recordTransition(
-  workstreamId: string,
-  fromStageId: string | undefined,
-  toStageId: string,
-  type: TransitionType,
-  reason?: string
-) {
-  const transitions = stageTransitions.get(workstreamId) || [];
-  transitions.push({
-    id: uuidv4(),
-    workstream_id: workstreamId,
-    from_stage_id: fromStageId,
-    to_stage_id: toStageId,
-    transition_type: type,
-    reason,
-    created_at: new Date().toISOString(),
-  });
-  stageTransitions.set(workstreamId, transitions);
+  if (action === 'complete') {
+    if (stage.status !== 'active') {
+      return { success: false, error: 'Stage is not active', stages: await getWorkstreamStages(workstreamId) };
+    }
+
+    // Find next pending sequential stage
+    const nextRows = await sql`
+      SELECT * FROM workstream_stages
+      WHERE workstream_id = ${workstreamId}
+        AND status = 'pending'
+        AND parallel = false
+        AND position > ${stage.position}
+      ORDER BY position
+      LIMIT 1
+    `;
+    const nextStage = nextRows.length > 0 ? rowToStage(nextRows[0]) : null;
+
+    // Complete current stage
+    await sql`
+      UPDATE workstream_stages SET status = 'completed', completed_at = ${now}
+      WHERE id = ${stage.id}
+    `;
+
+    if (nextStage) {
+      await sql`UPDATE workstream_stages SET status = 'active' WHERE id = ${nextStage.id}`;
+      await sql`UPDATE workstreams SET active_stage_id = ${nextStage.stage_id} WHERE id = ${workstreamId}`;
+      await sql`
+        INSERT INTO stage_transitions
+          (id, workstream_id, from_stage_id, to_stage_id, transition_type, reason, performed_by, created_at)
+        VALUES (
+          ${uuidv4()}, ${workstreamId}, ${stageId}, ${nextStage.stage_id},
+          ${'advance'}, ${null}, ${null}, ${now}
+        )
+      `;
+    }
+
+  } else if (action === 'skip') {
+    if (!stage.skippable) {
+      return { success: false, error: 'Stage is not skippable', stages: await getWorkstreamStages(workstreamId) };
+    }
+    if (stage.status !== 'active') {
+      return { success: false, error: 'Stage is not active', stages: await getWorkstreamStages(workstreamId) };
+    }
+
+    const nextRows = await sql`
+      SELECT * FROM workstream_stages
+      WHERE workstream_id = ${workstreamId}
+        AND status = 'pending'
+        AND parallel = false
+        AND position > ${stage.position}
+      ORDER BY position
+      LIMIT 1
+    `;
+    const nextStage = nextRows.length > 0 ? rowToStage(nextRows[0]) : null;
+
+    await sql`
+      UPDATE workstream_stages SET status = 'skipped', skipped_at = ${now}, skip_reason = ${reason ?? null}
+      WHERE id = ${stage.id}
+    `;
+
+    if (nextStage) {
+      await sql`UPDATE workstream_stages SET status = 'active' WHERE id = ${nextStage.id}`;
+      await sql`UPDATE workstreams SET active_stage_id = ${nextStage.stage_id} WHERE id = ${workstreamId}`;
+      await sql`
+        INSERT INTO stage_transitions
+          (id, workstream_id, from_stage_id, to_stage_id, transition_type, reason, performed_by, created_at)
+        VALUES (
+          ${uuidv4()}, ${workstreamId}, ${stageId}, ${nextStage.stage_id},
+          ${'skip'}, ${reason ?? null}, ${null}, ${now}
+        )
+      `;
+    }
+
+  } else if (action === 'reopen') {
+    if (stage.status !== 'completed' && stage.status !== 'skipped') {
+      return { success: false, error: 'Stage is not completed or skipped', stages: await getWorkstreamStages(workstreamId) };
+    }
+
+    await sql`
+      UPDATE workstream_stages SET status = 'active', reopened_at = ${now}
+      WHERE id = ${stage.id}
+    `;
+    await sql`UPDATE workstreams SET active_stage_id = ${stageId} WHERE id = ${workstreamId}`;
+    await sql`
+      INSERT INTO stage_transitions
+        (id, workstream_id, from_stage_id, to_stage_id, transition_type, reason, performed_by, created_at)
+      VALUES (
+        ${uuidv4()}, ${workstreamId}, ${null}, ${stageId},
+        ${'reopen'}, ${null}, ${null}, ${now}
+      )
+    `;
+  }
+
+  return { success: true, stages: await getWorkstreamStages(workstreamId) };
 }
 
 // ─── Messages ────────────────────────────────────────────────
 
-export function addMessage(
+export async function addMessage(
   workstreamId: string,
   role: 'user' | 'assistant' | 'system',
   content: string,
   stageId?: string
-): Message {
+): Promise<Message> {
   const msg: Message = {
     id: uuidv4(),
     workstream_id: workstreamId,
@@ -397,26 +297,29 @@ export function addMessage(
     stage_id: stageId,
     created_at: new Date().toISOString(),
   };
-  const msgs = messages.get(workstreamId) || [];
-  msgs.push(msg);
-  messages.set(workstreamId, msgs);
-  persist();
+  await sql`
+    INSERT INTO messages (id, workstream_id, role, content, stage_id, created_at)
+    VALUES (${msg.id}, ${msg.workstream_id}, ${msg.role}, ${msg.content}, ${msg.stage_id ?? null}, ${msg.created_at})
+  `;
   return msg;
 }
 
-export function getMessages(workstreamId: string): Message[] {
-  return messages.get(workstreamId) || [];
+export async function getMessages(workstreamId: string): Promise<Message[]> {
+  const rows = await sql`
+    SELECT * FROM messages WHERE workstream_id = ${workstreamId} ORDER BY created_at
+  `;
+  return rows as Message[];
 }
 
 // ─── Artifacts ───────────────────────────────────────────────
 
-export function createArtifact(
+export async function createArtifact(
   workstreamId: string,
   messageId: string,
   type: string,
   data: Record<string, unknown>,
   stageId?: string
-): Artifact {
+): Promise<Artifact> {
   const artifact: Artifact = {
     id: uuidv4(),
     workstream_id: workstreamId,
@@ -427,29 +330,38 @@ export function createArtifact(
     status: 'active',
     created_at: new Date().toISOString(),
   };
-  const arts = artifacts.get(workstreamId) || [];
-  arts.push(artifact);
-  artifacts.set(workstreamId, arts);
-  persist();
+  await sql`
+    INSERT INTO artifacts (id, workstream_id, message_id, type, data, stage_id, status, created_at)
+    VALUES (
+      ${artifact.id}, ${artifact.workstream_id}, ${artifact.message_id},
+      ${artifact.type}, ${JSON.stringify(artifact.data)}, ${artifact.stage_id ?? null},
+      ${artifact.status}, ${artifact.created_at}
+    )
+  `;
   return artifact;
 }
 
-export function getArtifacts(workstreamId: string, stageId?: string): Artifact[] {
-  const arts = artifacts.get(workstreamId) || [];
-  if (stageId) return arts.filter((a) => a.stage_id === stageId);
-  return arts;
+export async function getArtifacts(workstreamId: string, stageId?: string): Promise<Artifact[]> {
+  const rows = stageId
+    ? await sql`SELECT * FROM artifacts WHERE workstream_id = ${workstreamId} AND stage_id = ${stageId} ORDER BY created_at`
+    : await sql`SELECT * FROM artifacts WHERE workstream_id = ${workstreamId} ORDER BY created_at`;
+
+  return rows.map((r) => ({
+    ...(r as Omit<Artifact, 'data'>),
+    data: typeof r.data === 'string' ? JSON.parse(r.data) : r.data,
+  })) as Artifact[];
 }
 
 // ─── Files ───────────────────────────────────────────────────
 
-export function recordFile(
+export async function recordFile(
   workstreamId: string,
   name: string,
   blobUrl: string,
   mimeType: string,
   sizeBytes: number,
   stageId?: string
-): FileRecord {
+): Promise<FileRecord> {
   const file: FileRecord = {
     id: uuidv4(),
     workstream_id: workstreamId,
@@ -460,19 +372,46 @@ export function recordFile(
     stage_id: stageId,
     uploaded_at: new Date().toISOString(),
   };
-  const f = files.get(workstreamId) || [];
-  f.push(file);
-  files.set(workstreamId, f);
-  persist();
+  await sql`
+    INSERT INTO files (id, workstream_id, name, blob_url, mime_type, size_bytes, stage_id, uploaded_at)
+    VALUES (
+      ${file.id}, ${file.workstream_id}, ${file.name}, ${file.blob_url},
+      ${file.mime_type}, ${file.size_bytes}, ${file.stage_id ?? null}, ${file.uploaded_at}
+    )
+  `;
   return file;
 }
 
-export function getFiles(workstreamId: string): FileRecord[] {
-  return files.get(workstreamId) || [];
+export async function getFiles(workstreamId: string): Promise<FileRecord[]> {
+  const rows = await sql`SELECT * FROM files WHERE workstream_id = ${workstreamId} ORDER BY uploaded_at`;
+  return rows as FileRecord[];
 }
 
 // ─── Stage Transitions ──────────────────────────────────────
 
-export function getStageTransitions(workstreamId: string): StageTransition[] {
-  return stageTransitions.get(workstreamId) || [];
+export async function getStageTransitions(workstreamId: string): Promise<StageTransition[]> {
+  const rows = await sql`
+    SELECT * FROM stage_transitions WHERE workstream_id = ${workstreamId} ORDER BY created_at
+  `;
+  return rows as StageTransition[];
+}
+
+// ─── Helpers ─────────────────────────────────────────────────
+
+function rowToStage(row: Record<string, unknown>): WorkstreamStage {
+  return {
+    id: row.id as string,
+    workstream_id: row.workstream_id as string,
+    stage_id: row.stage_id as string,
+    stage_name: row.stage_name as string,
+    position: row.position as number,
+    status: row.status as StageStatus,
+    required: Boolean(row.required),
+    skippable: Boolean(row.skippable),
+    parallel: Boolean(row.parallel),
+    skip_reason: row.skip_reason as string | undefined,
+    completed_at: row.completed_at as string | undefined,
+    skipped_at: row.skipped_at as string | undefined,
+    reopened_at: row.reopened_at as string | undefined,
+  };
 }

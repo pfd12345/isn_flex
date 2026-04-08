@@ -16,17 +16,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    const workstream = getWorkstream(workstream_id);
+    const workstream = await getWorkstream(workstream_id);
     if (!workstream) {
       return NextResponse.json({ error: 'Workstream not found' }, { status: 404 });
     }
 
-    const project = getProject(workstream.project_id);
-    const activeStage = getActiveStage(workstream_id);
+    const project = await getProject(workstream.project_id);
+    const activeStage = await getActiveStage(workstream_id);
     const currentStageId = stage_id || activeStage?.stage_id || workstream.active_stage_id;
 
     // Save user message
-    addMessage(workstream_id, 'user', message, currentStageId);
+    await addMessage(workstream_id, 'user', message, currentStageId);
 
     // Build system prompt
     const systemPrompt = buildSystemPrompt(
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     );
 
     // Build message history for Claude
-    const history = getMessages(workstream_id);
+    const history = await getMessages(workstream_id);
     const chatMessages: ChatMessage[] = history
       .filter((m) => m.role === 'user' || m.role === 'assistant')
       .slice(-20) // Last 20 messages for context
@@ -93,12 +93,12 @@ async function collectAndSave(
     }
 
     // Save assistant message
-    const savedMessage = addMessage(workstreamId, 'assistant', fullText, stageId);
+    const savedMessage = await addMessage(workstreamId, 'assistant', fullText, stageId);
 
     // Extract and save artifacts
     const parsedArtifacts = parseArtifacts(fullText);
     for (const artifact of parsedArtifacts) {
-      createArtifact(workstreamId, savedMessage.id, artifact.type, artifact.data, stageId);
+      await createArtifact(workstreamId, savedMessage.id, artifact.type, artifact.data, stageId);
     }
   } catch (error) {
     console.error('Error collecting stream:', error);

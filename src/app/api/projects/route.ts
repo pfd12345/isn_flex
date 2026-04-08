@@ -11,17 +11,19 @@ import {
 import { getDefaultWorkflowTemplate, getWorkflowTemplate, getWorkflowStages, getPrompts } from '@/lib/config';
 
 export async function GET() {
-  const projects = listProjects();
+  const projects = await listProjects();
   // Enrich with workstream count
-  const enriched = projects.map((p) => ({
-    ...p,
-    workstreams: getWorkstreamsByProject(p.id),
-  }));
+  const enriched = await Promise.all(
+    projects.map(async (p) => ({
+      ...p,
+      workstreams: await getWorkstreamsByProject(p.id),
+    }))
+  );
   return NextResponse.json(enriched);
 }
 
 export async function DELETE() {
-  deleteAllProjects();
+  await deleteAllProjects();
   return NextResponse.json({ success: true });
 }
 
@@ -40,11 +42,11 @@ export async function POST(req: NextRequest) {
     }
 
     // Create project
-    const project = createProject(name, description || '');
+    const project = await createProject(name, description || '');
 
     // Create default workstream
     const wsName = workstream_name || name;
-    const workstream = createWorkstream(project.id, wsName, owner || 'Default Owner', templateId);
+    const workstream = await createWorkstream(project.id, wsName, owner || 'Default Owner', templateId);
 
     // Add welcome message
     const resolvedStages = getWorkflowStages(templateId);
@@ -59,12 +61,12 @@ export async function POST(req: NextRequest) {
       .replace('{total_stages}', String(sequentialStages.length))
       .replace('{first_stage_name}', firstStage?.name || 'the first stage');
 
-    addMessage(workstream.id, 'system', welcomeMsg, firstStage?.id);
+    await addMessage(workstream.id, 'system', welcomeMsg, firstStage?.id);
 
     return NextResponse.json({
       project,
       workstream,
-      stages: getWorkstreamStages(workstream.id),
+      stages: await getWorkstreamStages(workstream.id),
     }, { status: 201 });
   } catch (error) {
     console.error('Create project error:', error);

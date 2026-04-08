@@ -6,18 +6,21 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const project = getProject(id);
+  const project = await getProject(id);
 
   if (!project) {
     return NextResponse.json({ error: 'Project not found' }, { status: 404 });
   }
 
-  const workstreams = getWorkstreamsByProject(id).map((ws) => ({
-    ...ws,
-    stages: getWorkstreamStages(ws.id),
-    messages: getMessages(ws.id),
-    files: getFiles(ws.id),
-  }));
+  const rawWorkstreams = await getWorkstreamsByProject(id);
+  const workstreams = await Promise.all(
+    rawWorkstreams.map(async (ws) => ({
+      ...ws,
+      stages: await getWorkstreamStages(ws.id),
+      messages: await getMessages(ws.id),
+      files: await getFiles(ws.id),
+    }))
+  );
 
   return NextResponse.json({ ...project, workstreams });
 }
@@ -27,7 +30,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const success = deleteProject(id);
+  const success = await deleteProject(id);
 
   if (!success) {
     return NextResponse.json({ error: 'Project not found' }, { status: 404 });

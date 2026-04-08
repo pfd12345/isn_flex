@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }
 
-    const result = transitionStage(workstream_id, stage_id, action, reason);
+    const result = await transitionStage(workstream_id, stage_id, action, reason);
 
     if (!result.success) {
       return NextResponse.json({ error: result.error }, { status: 400 });
@@ -23,8 +23,8 @@ export async function POST(req: NextRequest) {
     // Add system message about the transition
     const stageConfig = getStageConfig(stage_id);
     const prompts = getPrompts();
-    const workstream = getWorkstream(workstream_id);
-    const stages = getWorkstreamStages(workstream_id);
+    const workstream = await getWorkstream(workstream_id);
+    const stages = await getWorkstreamStages(workstream_id);
     const nextActive = stages.find((s) => s.status === 'active');
 
     let systemMessage = '';
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (systemMessage) {
-      addMessage(
+      await addMessage(
         workstream_id,
         'system',
         systemMessage,
@@ -71,5 +71,5 @@ export async function GET(req: NextRequest) {
   if (!workstreamId) {
     return NextResponse.json({ error: 'workstream_id required' }, { status: 400 });
   }
-  return NextResponse.json(getWorkstreamStages(workstreamId));
+  return NextResponse.json(await getWorkstreamStages(workstreamId));
 }
