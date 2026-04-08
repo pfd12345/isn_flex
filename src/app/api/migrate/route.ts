@@ -3,7 +3,17 @@ import { neon } from '@neondatabase/serverless';
 import fs from 'fs';
 import path from 'path';
 
-const sql = neon(process.env.DATABASE_URL!);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Row = Record<string, any>;
+let _client: ReturnType<typeof neon> | null = null;
+function sql(strings: TemplateStringsArray, ...values: unknown[]): Promise<Row[]> {
+  if (!_client) {
+    const url = process.env.DATABASE_URL;
+    if (!url) throw new Error('DATABASE_URL environment variable is not set');
+    _client = neon(url);
+  }
+  return _client(strings, ...values) as Promise<Row[]>;
+}
 
 /**
  * GET /api/migrate
