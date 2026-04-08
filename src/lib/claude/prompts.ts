@@ -1,13 +1,13 @@
 import { getBasePrompt, getStageConfig, getWorkflowTemplate, getWorkflowStages } from '@/lib/config';
 import { getWorkstreamStages as getDbStages } from '@/lib/db';
 
-export function buildSystemPrompt(
+export async function buildSystemPrompt(
   stageId: string,
   projectName: string,
   workstreamName: string,
   templateId: string,
   workstreamId: string
-): string {
+): Promise<string> {
   const stage = getStageConfig(stageId);
   const template = getWorkflowTemplate(templateId);
   if (!stage || !template) return getBasePrompt();
@@ -17,7 +17,7 @@ export function buildSystemPrompt(
   const currentPosition = sequentialStages.findIndex((s) => s.id === stageId) + 1;
 
   // Get skipped stages from DB
-  const dbStages = getDbStages(workstreamId);
+  const dbStages = await getDbStages(workstreamId);
   const skippedStages = dbStages
     .filter((s) => s.status === 'skipped')
     .map((s) => `${s.stage_name} (skipped: ${s.skip_reason || 'no reason given'})`)

@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     await addMessage(workstream_id, 'user', message, currentStageId);
 
     // Build system prompt
-    const systemPrompt = buildSystemPrompt(
+    const systemPrompt = await buildSystemPrompt(
       currentStageId,
       project?.name || 'Unknown Project',
       workstream.name,
